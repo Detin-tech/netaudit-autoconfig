@@ -1,0 +1,63 @@
+---
+- name: Harden RDP Configuration
+  hosts: windows
+  gather_facts: yes
+  vars:
+    max_connections: 5
+    enable_nla: yes
+    
+  tasks:
+    - name: Set Network Level Authentication (NLA)
+      win_regedit:
+        path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp
+        name: UserAuthentication
+        data: 1
+        type: dword
+      when: enable_nla
+      
+    - name: Restrict RDP to specific users (administrators only)
+      win_security_policy:
+        section: System Access
+        key: SeRemoteInteractiveLogonRight
+        value: Administrators
+        
+    - name: Limit number of simultaneous RDP connections
+      win_regedit:
+        path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\Licensing Core
+        name: MaxConcurrentSessions
+        data: "{{ max_connections }}"
+        type: dword
+      
+    - name: Enable automatic disconnection of idle sessions
+      win_regedit:
+        path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp
+        name: IdleSessionLimit
+        data: 900000  # 15 minutes in milliseconds
+        type: dword
+      
+    - name: Set RDP keep-alive interval
+      win_regedit:
+        path: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp
+        name: KeepAliveTimeout
+        data: 60000  # 1 minute in milliseconds
+        type: dword
+      
+    - name: Disable drive redirection
+      win_regedit:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services
+        name: fDisableCdm
+        data: 1
+        type: dword
+      
+    - name: Disable clipboard redirection
+      win_regedit:
+        path: HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services
+        name: fDisableClip
+        data: 1
+        type: dword
+      
+    - name: Ensure Remote Desktop service is running
+      win_service:
+        name: TermService
+        state: started
+        start_mode: auto

@@ -1,0 +1,55 @@
+---
+- name: Harden SSH Configuration
+  hosts: all
+  become: yes
+  vars:
+    ssh_port: 22
+    ssh_protocol: 2
+    permit_root_login: no
+    password_authentication: no
+    
+  tasks:
+    - name: Ensure SSH is installed
+      apt:
+        name: openssh-server
+        state: present
+      
+    - name: Configure SSH daemon
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^{{ item.key }}"
+        line: "{{ item.key }} {{ item.value }}"
+        backup: yes
+      loop:
+        - { key: "Port", value: "{{ ssh_port }}" }
+        - { key: "Protocol", value: "{{ ssh_protocol }}" }
+        - { key: "PermitRootLogin", value: "{{ permit_root_login }}" }
+        - { key: "PasswordAuthentication", value: "{{ password_authentication }}" }
+        - { key: "X11Forwarding", value: "no" }
+        - { key: "MaxAuthTries", value: "4" }
+        - { key: "ClientAliveInterval", value: "300" }
+        - { key: "ClientAliveCountMax", value: "0" }
+        - { key: "AllowTcpForwarding", value: "no" }
+        - { key: "AllowAgentForwarding", value: "no" }
+        - { key: "PermitTTY", value: "yes" }
+        - { key: "UseDNS", value: "no" }
+      notify: Restart SSH
+      
+    - name: Remove weak ciphers from SSH configuration
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        line: "Ciphers aes256-ctr,aes192-ctr,aes128-ctr"
+        insertafter: EOF
+      notify: Restart SSH
+      
+    - name: Ensure SSH service is running and enabled
+      systemd:
+        name: ssh
+        state: started
+        enabled: yes
+        
+  handlers:
+    - name: Restart SSH
+      systemd:
+        name: ssh
+        state: restarted

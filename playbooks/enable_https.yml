@@ -1,0 +1,64 @@
+---
+- name: Enable HTTPS on Web Server
+  hosts: webservers
+  become: yes
+  vars:
+    certbot_email: admin@example.com
+    domain_name: example.com
+    web_server: apache2  # or nginx
+    
+  tasks:
+    - name: Install Certbot
+      apt:
+        name: 
+          - certbot
+          - python3-certbot-apache  # or python3-certbot-nginx for nginx
+        state: present
+        
+    - name: Obtain SSL certificate
+      command: "certbot --apache -m {{ certbot_email }} --agree-tos --non-interactive -d {{ domain_name }}"
+      # For nginx, use: command: "certbot --nginx -m {{ certbot_email }} --agree-tos --non-interactive -d {{ domain_name }}"
+      register: certbot_result
+      changed_when: "'Congratulations' in certbot_result.stdout"
+      
+    - name: Enable SSL module (Apache)
+      apache2_module:
+        name: ssl
+        state: present
+      when: web_server == 'apache2'
+      notify: Restart Apache
+      
+    - name: Enable default SSL site (Apache)
+      file:
+        src: /etc/apache2/sites-available/default-ssl.conf
+        dest: /etc/apache2/sites-enabled/default-ssl.conf
+        state: link
+      when: web_server == 'apache2'
+      notify: Restart Apache
+      
+    - name: Redirect HTTP to HTTPS (Apache)
+      lineinfile:
+        path: /etc/apache2/sites-available/000-default.conf
+        insertafter: "ServerAdmin"
+        line: |
+          RewriteEngine On
+          RewriteCond %{HTTPS} off
+          RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+      when: web_server == 'apache2'
+      notify: Restart Apache
+      
+    - name: Ensure web server is running and enabled
+      systemd:
+        name: "{{ web_server }}"
+        state: started
+        enabled: yes
+        
+  handlers:
+    - name: Restart Apache
+      systemd:
+        name: apache2
+        state: restarted
+    - name: Restart Nginx
+      systemd:
+        name: nginx
+        state: restarted

@@ -1,0 +1,75 @@
+# CIS Ubuntu Linux 22.04 Benchmark Rules
+
+# Initial Setup
+initial_setup:
+  filesystem_configuration:
+    tmp_partition:
+      required: true
+      remediation: "Create separate partition for /tmp"
+    var_tmp_partition:
+      required: true
+      remediation: "Create separate partition for /var/tmp"
+  configure_software_updates:
+    update_mechanism:
+      required: true
+      allowed_methods: ["apt", "snap"]
+
+# Services
+services:
+  # Remove unnecessary services
+  unused_services:
+    - telnet
+    - rsh
+    - rlogin
+    - talk
+    - xinetd
+  
+  # Configure essential services
+  ssh_service:
+    enabled: true
+    configuration_checks:
+      - PermitRootLogin=no
+      - PasswordAuthentication=no
+      - Protocol=2
+  
+  # Time synchronization
+  ntp_service:
+    enabled: true
+    configured: true
+
+# Network Configuration
+network_configuration:
+  disable_unused_protocols:
+    - dccp
+    - sctp
+    - rds
+    - tipc
+  
+  # Firewall configuration
+  firewall:
+    enabled: true
+    default_policy:
+      input: drop
+      forward: drop
+      output: accept
+
+# Logging and Auditing
+logging:
+  auditd:
+    enabled: true
+    audit_rules:
+      - identity_changes
+      - system_locale_changes
+      - mandatory_access_controls
+      - privileged_commands
+
+# Access, Authentication and Authorization
+access_control:
+  cron:
+    restrict_users: true
+    allow_only: ["root"]
+  
+  ssh:
+    permit_empty_passwords: false
+    ignore_rhosts: true
+    host_based_authentication: false

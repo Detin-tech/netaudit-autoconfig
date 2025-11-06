@@ -1,0 +1,62 @@
+---
+- name: Harden MySQL Configuration
+  hosts: databases
+  become: yes
+  vars:
+    mysql_config_file: /etc/mysql/mysql.conf.d/mysqld.cnf
+    
+  tasks:
+    - name: Ensure MySQL is installed
+      apt:
+        name: mysql-server
+        state: present
+      
+    - name: Bind MySQL to localhost only
+      lineinfile:
+        path: "{{ mysql_config_file }}"
+        regexp: "^bind-address"
+        line: "bind-address = 127.0.0.1"
+        backup: yes
+      notify: Restart MySQL
+      
+    - name: Disable network listening (skip-networking)
+      lineinfile:
+        path: "{{ mysql_config_file }}"
+        regexp: "^skip-networking"
+        line: "skip-networking"
+        backup: yes
+      notify: Restart MySQL
+      
+    - name: Set secure password for root user
+      mysql_user:
+        name: root
+        password: "{{ mysql_root_password }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        state: present
+      
+    - name: Remove anonymous users
+      mysql_user:
+        name: ""
+        host_all: yes
+        state: absent
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+      
+    - name: Remove test database
+      mysql_db:
+        name: test
+        state: absent
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+      
+    - name: Ensure MySQL service is running and enabled
+      systemd:
+        name: mysql
+        state: started
+        enabled: yes
+        
+  handlers:
+    - name: Restart MySQL
+      systemd:
+        name: mysql
+        state: restarted
